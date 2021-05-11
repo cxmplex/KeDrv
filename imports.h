@@ -1,0 +1,36 @@
+#pragma once
+#define IOCTL_READ_MEM CTL_CODE(FILE_DEVICE_UNKNOWN, 0x901, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
+#define IOCTL_WRITE_MEM CTL_CODE(FILE_DEVICE_UNKNOWN, 0x902, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
+#define IOCTL_READ_MODBASE CTL_CODE(FILE_DEVICE_UNKNOWN, 0x903, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
+#define IOCTL_ALLOCATE_MEM CTL_CODE(FILE_DEVICE_UNKNOWN, 0x904, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
+#define IOCTL_PROTECT_MEM CTL_CODE(FILE_DEVICE_UNKNOWN, 0x905, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
+
+PDEVICE_OBJECT device_object;
+UNICODE_STRING dev, dos;
+
+UNICODE_STRING DeviceName = RTL_CONSTANT_STRING(L"\\Device\\cxmplexgithub"), SymbolicLink = RTL_CONSTANT_STRING(L"\\DosDevices\\cxmplexgithub");
+
+DRIVER_DISPATCH Create;
+DRIVER_DISPATCH IOCTL;
+DRIVER_DISPATCH Close;
+DRIVER_UNLOAD Unload;
+
+struct {
+	int pid;
+	int user_pid;
+	int size;
+	int protection_mode;
+	int allocation_type;
+	void* address;
+	void* write_buffer;
+	LPWSTR module_selection;
+}
+userland_operation;
+
+typedef struct _MODULE_INFO
+{
+	ULONGLONG Base;
+	ULONG Size;
+	WCHAR Name[1024];
+} MODULE_INFO, * PMODULE_INFO;
+
