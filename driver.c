@@ -10,8 +10,23 @@ NTSTATUS IOCTL(PDEVICE_OBJECT device_object, PIRP irp) {
 	PIO_STACK_LOCATION io;
 
 	__try {
+		// microsoft naming convention is pIrpSp
 		io = IoGetCurrentIrpStackLocation(irp);
+		
+		// check the length of the buffer
+		// why: race condition between a dispatch and userland application exiting suddenly (user closes it, crashes, etc)
+		// this will lead to PAGE_FAULT_IN_NONPAGED_AREA (0x50) when executing memcpy, the stack address content will look like
+		// kd> db ffff8304d6d76000 
+		// 	ffff8304`d6d76000  ?? ?? ?? ?? ?? ?? ?? ??-?? ?? ?? ?? ?? ?? ?? ??
+		if (!io->Parameters.DeviceIoControl.InputBufferLength || io->Parameters.DeviceIoControl.InputBufferLength < 8) {
+			DbgPrintEx(0, 0, "Length is %lu", io->Parameters.DeviceIoControl.InputBufferLength);
+			goto StackFailure;
+		}
+		
+		// copy the struct given by userland in the [in] buffer
 		memcpy(&userland_operation, irp->AssociatedIrp.SystemBuffer, sizeof(userland_operation));
+		
+		// this is the userland [out] buffer
 		user_buffer = (PUCHAR)MmGetSystemAddressForMdlSafe(irp->MdlAddress, NormalPagePriority);
 
 		switch (io->Parameters.DeviceIoControl.IoControlCode) {
@@ -76,6 +91,11 @@ NTSTATUS IOCTL(PDEVICE_OBJECT device_object, PIRP irp) {
 
 	DefaultFailure:
 		KeFlushIoBuffers(irp->MdlAddress, TRUE, FALSE);
+		irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
+		irp->IoStatus.Information = 0;
+		IoCompleteRequest(irp, IO_NO_INCREMENT);
+		return STATUS_INVALID_DEVICE_REQUEST;
+	StackFailure:
 		irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
 		irp->IoStatus.Information = 0;
 		IoCompleteRequest(irp, IO_NO_INCREMENT);
